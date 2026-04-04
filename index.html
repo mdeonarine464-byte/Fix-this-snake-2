@@ -438,7 +438,7 @@
         <div class="option-row"><span class="option-label">Snake Body</span><input class="advanced-upload" type="file" accept="image/*" onchange="uploadCustomSkinPart('body', event)"></div>
         <div class="option-row"><span class="option-label">Snake Tail</span><input class="advanced-upload" type="file" accept="image/*" onchange="uploadCustomSkinPart('tail', event)"></div>
         <div class="option-row"><span class="option-label">Music</span><input class="advanced-upload" type="file" accept="audio/*" onchange="uploadCustomMusic(event)"></div>
-        <div class="option-row"><span class="option-label">Playfield BG</span><input class="advanced-upload" type="file" accept="image/*" onchange="uploadCustomBackground(event)"></div>
+        <div class="option-row"><span class="option-label">Playfield BG</span><input class="advanced-upload" type="file" accept="image/png,image/*" onchange="uploadCustomBackground(event)"></div>
         <div class="option-row">
             <span class="option-label">Growth Style</span>
             <button class="switch-btn" id="growth-tail-btn" onclick="setGrowthMode('tail')">Tail Growth</button>
@@ -691,6 +691,7 @@
         body: new Image(),
         tail: new Image()
     };
+    const playfieldBackgroundImage = new Image();
     snakeImageSkinAssets.head.src = 'https://codehs.com/uploads/7ede088a2b8e13004598196b57c8ea42';
     snakeImageSkinAssets.body.src = 'https://codehs.com/uploads/39c867b57d8cf23c0094d7fb3de37db7';
     snakeImageSkinAssets.tail.src = 'https://codehs.com/uploads/7db8b7ebaf3e37439adf04a3145b0de1';
@@ -779,6 +780,7 @@
     if (data.customSkinBody) snakeImageSkinAssets.body.src = data.customSkinBody;
     if (data.customSkinTail) snakeImageSkinAssets.tail.src = data.customSkinTail;
     if (data.customMusic) defaultMusic.src = data.customMusic;
+    if (data.customGameBackground) playfieldBackgroundImage.src = data.customGameBackground;
 
     function normalizeControlValue(value) {
         return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 12);
@@ -1876,14 +1878,23 @@ function applyGameBackground() {
     const gameContainer = document.getElementById('game-container');
     if (!gameContainer) return;
     if (data.customGameBackground) {
-        gameContainer.style.backgroundImage = `url('${data.customGameBackground}')`;
-        gameContainer.style.backgroundSize = 'cover';
-        gameContainer.style.backgroundPosition = 'center';
-    } else {
+        playfieldBackgroundImage.src = data.customGameBackground;
         gameContainer.style.backgroundImage = 'none';
-        gameContainer.style.backgroundSize = '';
-        gameContainer.style.backgroundPosition = '';
+    } else {
+        playfieldBackgroundImage.src = '';
+        gameContainer.style.backgroundImage = 'none';
     }
+    gameContainer.style.backgroundSize = '';
+    gameContainer.style.backgroundPosition = '';
+}
+
+function drawPlayfieldBackground() {
+    if (data.customGameBackground && playfieldBackgroundImage.complete && playfieldBackgroundImage.naturalWidth > 0) {
+        ctx.drawImage(playfieldBackgroundImage, 0, 0, canvas.width, canvas.height);
+        return;
+    }
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function uploadCustomBackground(event) {
@@ -2735,7 +2746,7 @@ if (appleMoveTick >= appleMoveRate) {
             } else snake.pop();
         }
         
-        ctx.fillStyle = "black"; ctx.fillRect(0,0,400,400);
+        drawPlayfieldBackground();
         const primaryAppleColor = getGoldAppleRenderColor(0);
         ctx.fillStyle = primaryAppleColor;
         if (data.neonEnabled) {

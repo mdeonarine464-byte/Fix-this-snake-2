@@ -780,11 +780,6 @@
     if (data.customSkinTail) snakeImageSkinAssets.tail.src = data.customSkinTail;
     if (data.customMusic) defaultMusic.src = data.customMusic;
 
-    if (data.customSkinHead) snakeImageSkinAssets.head.src = data.customSkinHead;
-    if (data.customSkinBody) snakeImageSkinAssets.body.src = data.customSkinBody;
-    if (data.customSkinTail) snakeImageSkinAssets.tail.src = data.customSkinTail;
-    if (data.customMusic) defaultMusic.src = data.customMusic;
-
     function normalizeControlValue(value) {
         return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 12);
     }
@@ -1846,14 +1841,13 @@ function uploadCustomSkinPart(part, event) {
         const key = `customSkin${part.charAt(0).toUpperCase() + part.slice(1)}`;
         data[key] = dataUrl;
         if (snakeImageSkinAssets[part]) snakeImageSkinAssets[part].src = dataUrl;
-        if (!data.owned.includes(IMAGE_SKIN_ID)) data.owned.push(IMAGE_SKIN_ID);
         save();
     });
 }
 
 function useUploadedSkin() {
     if (!data.customSkinHead && !data.customSkinBody && !data.customSkinTail) return alert('Upload at least one custom skin image first.');
-    if (!data.owned.includes(IMAGE_SKIN_ID)) data.owned.push(IMAGE_SKIN_ID);
+    if (!data.owned.includes(IMAGE_SKIN_ID)) return alert('Buy the image skin in the shop first (30k).');
     data.skin = IMAGE_SKIN_ID;
     save();
     updateUI();

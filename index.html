@@ -440,6 +440,11 @@
         <div class="option-row"><span class="option-label">Music</span><input class="advanced-upload" type="file" accept="audio/*" onchange="uploadCustomMusic(event)"></div>
         <div class="option-row"><span class="option-label">Playfield BG</span><input class="advanced-upload" type="file" accept="image/*" onchange="uploadCustomBackground(event)"></div>
         <div class="option-row">
+            <span class="option-label">Growth Style</span>
+            <button class="switch-btn" id="growth-tail-btn" onclick="setGrowthMode('tail')">Tail Growth</button>
+            <button class="switch-btn" id="growth-body-btn" onclick="setGrowthMode('body')">Body Growth</button>
+        </div>
+        <div class="option-row">
             <button class="switch-btn" onclick="useUploadedSkin()">Use Uploaded Skin</button>
             <button class="switch-btn" onclick="clearCustomMusic()">Reset Music</button>
             <button class="switch-btn" onclick="clearCustomBackground()">Reset BG</button>
@@ -753,7 +758,8 @@
         customSkinBody: '',
         customSkinTail: '',
         customMusic: '',
-        customGameBackground: ''
+        customGameBackground: '',
+        growthMode: 'tail'
     };
     let data = Object.assign({}, defaultSaveData, JSON.parse(localStorage.getItem('Snake_2026_SoulReveal')) || {});
     if (!Array.isArray(data.owned)) data.owned = ['#00fbff'];
@@ -767,6 +773,12 @@
     if (typeof data.musicEnabled !== 'boolean') data.musicEnabled = true;
     if (typeof data.neonEnabled !== 'boolean') data.neonEnabled = true;
     if (!data.phaseKey) data.phaseKey = 'space';
+    if (data.growthMode !== 'tail' && data.growthMode !== 'body') data.growthMode = 'tail';
+
+    if (data.customSkinHead) snakeImageSkinAssets.head.src = data.customSkinHead;
+    if (data.customSkinBody) snakeImageSkinAssets.body.src = data.customSkinBody;
+    if (data.customSkinTail) snakeImageSkinAssets.tail.src = data.customSkinTail;
+    if (data.customMusic) defaultMusic.src = data.customMusic;
 
     if (data.customSkinHead) snakeImageSkinAssets.head.src = data.customSkinHead;
     if (data.customSkinBody) snakeImageSkinAssets.body.src = data.customSkinBody;
@@ -1780,6 +1792,10 @@ function updateOptionButtons() {
     }
     const customRow = document.getElementById('custom-control-row');
     if (customRow) customRow.style.opacity = data.controlPreset === 'custom' ? '1' : '0.55';
+    const growthTailBtn = document.getElementById('growth-tail-btn');
+    const growthBodyBtn = document.getElementById('growth-body-btn');
+    if (growthTailBtn) growthTailBtn.classList.toggle('active', data.growthMode === 'tail');
+    if (growthBodyBtn) growthBodyBtn.classList.toggle('active', data.growthMode === 'body');
 }
 
 function fillCustomControlsUI() {
@@ -1889,6 +1905,13 @@ function clearCustomBackground() {
     data.customGameBackground = '';
     applyGameBackground();
     save();
+}
+
+function setGrowthMode(mode) {
+    if (mode !== 'tail' && mode !== 'body') return;
+    data.growthMode = mode;
+    save();
+    updateOptionButtons();
 }
 
 function setControlPreset(preset) {
@@ -2708,8 +2731,14 @@ if (appleMoveTick >= appleMoveRate) {
                 applyAppleRewards(2, true);
                 if (data.exp >= data.nxt) { data.lvl++; data.sp++; data.xpM += 0.2; data.exp = 0; data.nxt *= 1.10; }
                 save(); updateUI();
-            } else if (growCount > 0) growCount--;
-            else snake.pop();
+            } else if (growCount > 0) {
+                growCount--;
+                if (data.growthMode === 'body' && snake.length > 2) {
+                    const neck = snake[1];
+                    snake.splice(1, 0, { x: neck.x, y: neck.y });
+                    snake.pop();
+                }
+            } else snake.pop();
         }
         
         ctx.fillStyle = "black"; ctx.fillRect(0,0,400,400);

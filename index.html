@@ -678,7 +678,7 @@
     const endingMusic = new Audio("https://codehs.com/uploads/7288ab503976716568ef8abd3ee39c3b");
     endingMusic.loop = false;
     endingMusic.volume = 0.7;
-    const creditsMusic = new Audio("credit.mp3");
+    const creditsMusic = new Audio("https://codehs.com/uploads/01680af39ae7d5cc89f66ed51211f0f7");
     creditsMusic.loop = false;
     creditsMusic.volume = 0.75;
     let endingTriggered = false;
@@ -2017,26 +2017,25 @@ function openCredits(endingText = "Thanks for playing Snake 2.") {
 }
 
 function closeCredits() {
+    creditsMusic.pause();
+    creditsMusic.currentTime = 0;
+
+    const modal = document.getElementById("credits-modal");
+    if (modal) modal.style.display = "none";
+
     if (endingActive) {
         location.reload();
         return;
     }
 
-    const modal = document.getElementById("credits-modal");
-    if (modal) modal.style.display = "none";
-
     modalActive = false;
-
-    if (!titleActive) {
-        isPaused = false;
-    }
-
-    creditsMusic.pause();
-    creditsMusic.currentTime = 0;
+    if (!titleActive) isPaused = false;
     if (!titleActive && data.musicEnabled) playDefaultMusic();
 }
 
 function startCredits(endingText) {
+    isPaused = true;
+    modalActive = true;
     openCredits(endingText);
 }
     function buyBuff(type) {

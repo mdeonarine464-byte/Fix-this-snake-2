@@ -735,9 +735,15 @@
     function handleEndingAdvanceClick() {
     if (!endingAwaitingClick) return;
     endingAwaitingClick = false;
+
     const endingOverlay = document.getElementById('ending-overlay');
     if (endingOverlay) endingOverlay.style.display = 'none';
-    startCredits(queuedEndingText);
+
+    // Force the ending display to appear immediately after the ending overlay closes,
+    // and start the ending/credits music from this same user interaction.
+    requestAnimationFrame(() => {
+        startCredits(queuedEndingText);
+    });
 }
 
 

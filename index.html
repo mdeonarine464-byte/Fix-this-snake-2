@@ -2862,6 +2862,13 @@ window.addEventListener("keydown", (e) => {
         }
         
         snake.unshift(head);
+
+        // Trigger endings by total growth progress, even if phase overlap prevents full tile coverage.
+        if (snake.length >= 400) {
+            handleBoardFull();
+            return;
+        }
+
         // 🍎 Apple movement scaling with snake speed
 appleMoveTick++;
 

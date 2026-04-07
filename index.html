@@ -295,11 +295,14 @@ const ACTION_KEY_LABELS = ['Q', 'Y', 'Ctrl'];
  
 // ════════════════════════════════════════════════════════
 // PHASE TIMINGS
-// Base: 5 000 ms active, 7 500 ms cooldown
-// Dual Phase tier doubles both (10 000 ms active, 15 000 ms CD)
+// Base + Core time bonus: 15 000 ms active, 17 500 ms cooldown
+// Dual Phase tier doubles both
 // ════════════════════════════════════════════════════════
-const PHASE_DURATION_BASE = 5000;
-const PHASE_CD_BASE       = 7500;
+const CORE_TIME_BONUS_MS  = 10000;
+const PHASE_DURATION_BASE = 5000 + CORE_TIME_BONUS_MS;
+const PHASE_CD_BASE       = 7500 + CORE_TIME_BONUS_MS;
+const SHEDDING_SLOW_ZONE_MS = 3000 + CORE_TIME_BONUS_MS;
+const SHEDDING_BRICK_MS     = 15000 + CORE_TIME_BONUS_MS;
  
 // ════════════════════════════════════════════════════════
 // CORE DEFINITIONS
@@ -319,13 +322,13 @@ const CORE_DEFS = {
     color: '#a020f0',
     tiers: [
       { name:'Phase Shift',
-        desc:'5s of phasing through walls & snakes. 7.5s cooldown. Action key to activate.' },
+        desc:'15s of phasing through walls & snakes. 17.5s cooldown. Action key to activate.' },
       { name:'Phase Charge',
         desc:'Eating apples while cooldown is ticking reduces CD by 0.5s each.' },
       { name:'Phase Expertise',
         desc:'Apples eaten while actively phasing give double XP toward the next tier.' },
       { name:'Dual Phase',
-        desc:'2 charges before cooldown. Phase duration and cooldown both doubled (10s / 15s).' },
+        desc:'2 charges before cooldown. Phase duration and cooldown both doubled (30s / 35s).' },
     ],
     xpThresholds: [231, 371, 591],
     xpPerApple:   4,
@@ -343,9 +346,9 @@ const CORE_DEFS = {
       { name:'Cannibalism',
         desc:'Eat shed pieces for 2× score bonus. Eating shed gives +16 XP (vs +4 for an apple).' },
       { name:'Ark Shedding',
-        desc:'When shedding occurs, a slow zone lingers at the shed spot for 3s (enemies at 60% speed).' },
+        desc:'When shedding occurs, a slow zone lingers at the shed spot for 13s (enemies at 60% speed).' },
       { name:'Shedding Bricks',
-        desc:'Shed pieces become solid walls for enemies lasting 15 seconds.' },
+        desc:'Shed pieces become solid walls for enemies lasting 25 seconds.' },
     ],
     xpThresholds: [231, 371, 591],
     xpPerApple:   4,
@@ -387,7 +390,7 @@ const BUFF_DEFS = [
     id:'gold_apple',
     name:'Gold Apple',
     color:'#ffd700',
-    desc:'Apples give 15% more XP toward core upgrades.',
+    desc:'Apples give 25% more XP toward core upgrades.',
   },
   {
     id:'dual_apple',
@@ -405,9 +408,13 @@ const BUFF_DEFS = [
     id:'xp_boost',
     name:'XP Surge',
     color:'#9370db',
-    desc:'All XP gains (apples + kills) are increased by 25%.',
+    desc:'All XP gains (apples + kills) are increased by 15%.',
   },
 ];
+
+function getTargetAppleCount(snakesInPlay){
+  return Math.max(6, 3 + snakesInPlay * 3);
+}
  
 // Random length-milestone buff effects (Growth Bonus buff)
 const LENGTH_BUFF_EFFECTS = [
@@ -795,7 +802,7 @@ function startGame(){
   });
  
   const apples=[];
-  for(let i=0;i<Math.max(5,activeLobbyPlayers.length+2);i++){
+  for(let i=0;i<getTargetAppleCount(activeLobbyPlayers.length);i++){
     const spot=randomEmptySpot(players,apples,gridW,gridH);
     if(spot)apples.push(newApple(spot,sharedRpg,lobbyState.mode));
   }
@@ -1039,7 +1046,7 @@ function movePlayer(p){
     doShed(p,cnt);
   }
  
-  const target=Math.max(5,gameState.players.filter(q=>q.alive).length+2);
+  const target=getTargetAppleCount(gameState.players.filter(q=>q.alive).length);
   while(gameState.apples.length<target){
     const spot=randomEmptySpot(gameState.players,gameState.apples,gridW,gridH);
     if(!spot) break;
@@ -1062,9 +1069,9 @@ function doShed(p, count){
     if(!seg) break;
     shedPositions.push({x:seg.x,y:seg.y});
     if(hasCannibalism(p)){
-      // Shedding Bricks: shed piece becomes a solid wall for 15s
+      // Shedding Bricks: shed piece becomes a solid wall for an extended duration
       if(hasSheddingBricks(p)){
-        gameState.brickWalls.push({x:seg.x,y:seg.y,until:now+15000,ownerId:p.id,color:p.color});
+        gameState.brickWalls.push({x:seg.x,y:seg.y,until:now+SHEDDING_BRICK_MS,ownerId:p.id,color:p.color});
       } else {
         p.shedTailPieces.push({x:seg.x,y:seg.y,type:'normal'});
       }
@@ -1076,7 +1083,7 @@ function doShed(p, count){
   // Ark Shedding: place slow zone at first shed position
   if(hasArkShedding(p)&&shedPositions.length>0){
     const sp=shedPositions[0];
-    gameState.slowZones.push({x:sp.x,y:sp.y,r:2,until:now+3000,ownerId:p.id,color:p.color});
+    gameState.slowZones.push({x:sp.x,y:sp.y,r:2,until:now+SHEDDING_SLOW_ZONE_MS,ownerId:p.id,color:p.color});
   }
 }
  
@@ -1130,12 +1137,12 @@ function collectApple(p,a){
     }
   }
  
-  // Core XP from apple — with Gold Apple (+15%) and XP Surge (+25%) buff multipliers
+  // Core XP from apple — with Gold Apple (+25%) and XP Surge (+15%) buff multipliers
   if(p.core){
     const def=CORE_DEFS[p.core.id];
     let xpGain=def.xpPerApple;
-    if(hasBuff(p,'gold_apple'))  xpGain*=1.15;
-    if(hasBuff(p,'xp_boost'))    xpGain*=1.25;
+    if(hasBuff(p,'gold_apple'))  xpGain*=1.25;
+    if(hasBuff(p,'xp_boost'))    xpGain*=1.15;
     addCoreXP(p, Math.ceil(xpGain));
   }
 }
@@ -1145,7 +1152,7 @@ function showCarnivalToast(msg,color){const el=document.getElementById('carnival
  
 // ════════════════════════════════════════════════════════
 // PHASE — action-key activated core ability
-// Base: 5s duration, 7.5s cooldown (PHASE_DURATION_BASE / PHASE_CD_BASE)
+// Base: 15s duration, 17.5s cooldown (PHASE_DURATION_BASE / PHASE_CD_BASE)
 // Dual Phase tier: 2 charges, duration×2, cooldown×2
 // ════════════════════════════════════════════════════════
 function getPhaseDuration(p){
@@ -1208,7 +1215,7 @@ function reducePhaseCooldown(p, seconds){
 // ════════════════════════════════════════════════════════
 function killPlayer(p,killedById){
   if(!p.alive) return;p.alive=false;p.deathCount++;
-  if(killedById!==null){const k=gameState.players.find(o=>o.id===killedById);if(k){k.kills++;if(k.core){let kxp=CORE_DEFS[k.core.id].xpPerKill;if(hasBuff(k,'xp_boost'))kxp=Math.ceil(kxp*1.25);addCoreXP(k,kxp);}}}
+  if(killedById!==null){const k=gameState.players.find(o=>o.id===killedById);if(k){k.kills++;if(k.core){let kxp=CORE_DEFS[k.core.id].xpPerKill;if(hasBuff(k,'xp_boost'))kxp=Math.ceil(kxp*1.15);addCoreXP(k,kxp);}}}
   if(gameState.rules.respawn)p.respawnTimer=3000;
 }
 function respawnPlayer(p){

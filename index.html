@@ -1086,8 +1086,8 @@ function collectApple(p,a){
   const goldBonus=(p._goldApples||0)>0?(p._goldApples--,1.5):1;
   const phaseScoreMult=(p.phaseActive&&(hasPhaseExpertise(p)||(rpg&&rpg.phaseGreed)))?1.75:1;
   const phaseGrowMult =(p.phaseActive&&(hasPhaseExpertise(p)||(rpg&&rpg.phaseExpertise)))?1.75:1;
-  p.score+=Math.ceil(10*goldMult*goldBonus*phaseScoreMult);
-  const evoMult=(rpg&&rpg.evo>1)?rpg.evo:1;
+  p.score+=1;
+  const evoMult=1;
   let grow=Math.ceil(1*phaseGrowMult);
   if(evoMult>1) grow=Math.ceil(grow*evoMult);
   if(rpg&&rpg.echoGrowthLevel>0){const triggers=Math.floor((p.applesEaten+1)/5)-Math.floor(p.applesEaten/5);if(triggers>0)grow+=2*rpg.echoGrowthLevel*triggers;}

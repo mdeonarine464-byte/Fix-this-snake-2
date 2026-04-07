@@ -116,14 +116,13 @@ body{background:var(--dark);color:#fff;font-family:'Segoe UI',sans-serif;min-hei
 .buff-player-row{padding:10px 0;border-bottom:1px solid #1a1a1a;}
 .buff-player-row:last-child{border-bottom:none;}
 .buff-player-name{font-size:.78em;font-weight:bold;letter-spacing:1px;margin-bottom:8px;}
-.buff-slots{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.buff-slot{display:grid;grid-template-columns:30px 1fr 30px;align-items:center;gap:8px;}
-.buff-slot-label{font-size:.62em;color:#666;margin-bottom:5px;grid-column:1/-1;text-align:center;letter-spacing:1px;text-transform:uppercase;}
-.buff-arrow{height:70px;background:#111;border:1px solid #333;color:#666;border-radius:6px;cursor:pointer;}
-.buff-arrow:hover{border-color:#888;color:#fff;}
-.buff-display{min-height:70px;border:2px solid #333;border-radius:8px;padding:8px;background:#050505;}
-.buff-display-name{font-size:.75em;font-weight:700;}
-.buff-display-desc{font-size:.62em;color:#666;line-height:1.35;margin-top:4px;}
+.buff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;}
+.buff-cell{background:#090909;border:1px solid #262626;border-radius:8px;padding:8px;cursor:pointer;transition:all .12s;}
+.buff-cell:hover{border-color:#4a4a4a;}
+.buff-cell.selected{box-shadow:0 0 0 1px inset currentColor;}
+.buff-cell.disabled{opacity:.45;cursor:not-allowed;}
+.buff-cell-name{font-size:.7em;font-weight:700;line-height:1.2;}
+.buff-cell-desc{font-size:.62em;color:#666;margin-top:4px;line-height:1.35;}
  
 /* GAME SCREEN */
 #game-screen{flex-direction:column;width:100vw;height:100vh;overflow:hidden;}
@@ -635,23 +634,6 @@ function buildCorePanel(){
 }
  
 // ── BUFF PANEL ──────────────────────────────────────────
-const BUFF_IDS = BUFF_DEFS.map(b=>b.id);
-function cycleBuffNext(playerIdx, slot){
-  const p=lobbyState.players[playerIdx];
-  const other=p.buffIds[slot===0?1:0];
-  let cur=BUFF_IDS.indexOf(p.buffIds[slot]);
-  do{ cur=(cur+1)%BUFF_IDS.length; }while(BUFF_IDS[cur]===other);
-  p.buffIds[slot]=BUFF_IDS[cur];
-  buildLobby();
-}
-function cycleBuffPrev(playerIdx, slot){
-  const p=lobbyState.players[playerIdx];
-  const other=p.buffIds[slot===0?1:0];
-  let cur=BUFF_IDS.indexOf(p.buffIds[slot]);
-  do{ cur=(cur-1+BUFF_IDS.length)%BUFF_IDS.length; }while(BUFF_IDS[cur]===other);
-  p.buffIds[slot]=BUFF_IDS[cur];
-  buildLobby();
-}
 function buildBuffPanel(){
   const container=document.getElementById('buff-player-rows');
   if(!container) return;
@@ -659,24 +641,29 @@ function buildBuffPanel(){
   lobbyState.players.filter(p=>p.active).forEach((lp)=>{
     const idx=lobbyState.players.indexOf(lp);
     const row=document.createElement('div');row.className='buff-player-row';
-    const nameEl=`<div class="buff-player-name" style="color:${lp.color}">${lp.name} — 2 side buffs</div>`;
-    const slots=lp.buffIds.map((bid,slot)=>{
-      const def=BUFF_DEFS.find(b=>b.id===bid)||BUFF_DEFS[0];
-      return `<div class="buff-slot">
-        <div class="buff-slot-label">Buff ${slot+1}</div>
-        <button class="buff-arrow" onclick="cycleBuffPrev(${idx},${slot})">&#9664;</button>
-        <div class="buff-display" style="border-color:${def.color}">
-          <div class="buff-display-name" style="color:${def.color}">${def.name}</div>
-          <div class="buff-display-desc">${def.desc}</div>
-        </div>
-        <button class="buff-arrow" onclick="cycleBuffNext(${idx},${slot})">&#9654;</button>
-      </div>`;
+    const nameEl=`<div class="buff-player-name" style="color:${lp.color}">${lp.name} — pick up to 2</div>`;
+    const cells=BUFF_DEFS.map(def=>{
+      const selected=lp.buffIds.includes(def.id);
+      const atLimit=lp.buffIds.length>=2;
+      const disabled=!selected&&atLimit;
+      return `<button class="buff-cell ${selected?'selected':''} ${disabled?'disabled':''}" style="color:${def.color};border-color:${selected?def.color:'#262626'}" onclick="toggleBuff(${idx},'${def.id}')">
+        <div class="buff-cell-name">${def.name}</div>
+        <div class="buff-cell-desc">${def.desc}</div>
+      </button>`;
     }).join('');
-    row.innerHTML=nameEl+`<div class="buff-slots">${slots}</div>`;
+    row.innerHTML=nameEl+`<div class="buff-grid">${cells}</div>`;
     container.appendChild(row);
   });
 }
 // ────────────────────────────────────────────────────────
+
+function toggleBuff(playerIdx,buffId){
+  const p=lobbyState.players[playerIdx];
+  const has=p.buffIds.includes(buffId);
+  if(has)p.buffIds=p.buffIds.filter(id=>id!==buffId);
+  else if(p.buffIds.length<2)p.buffIds.push(buffId);
+  buildLobby();
+}
  
 function togglePlayer(i){lobbyState.players[i].active=!lobbyState.players[i].active;buildLobby();validateStart();}
 function updatePlayer(i,field,val){

@@ -292,6 +292,18 @@ const SWATCH_COLORS=[
 // ════════════════════════════════════════════════════════
 const ACTION_KEYS = ['q', 'y', 'Control'];
 const ACTION_KEY_LABELS = ['Q', 'Y', 'Ctrl'];
+
+// ════════════════════════════════════════════════════════
+// ARK CORE CONSTANTS
+// ════════════════════════════════════════════════════════
+const ARK_CD_MS             = 8000;   // base cooldown
+const ARK_CD_OVERCHARGE_MS  = 5000;   // Overcharge cooldown (tier 2)
+const ARK_RADIUS            = 3;      // base slow field radius (Chebyshev)
+const ARK_RADIUS_OVERCHARGE = 5;      // Overcharge radius (tier 2)
+const ARK_SLOW_MS           = 4000;   // slow zone duration
+const ARK_BURST_SUPPRESS_MS = 3000;   // core suppression duration (tier 3)
+const ARK_CHAIN_TILES       = 5;      // chain reaches enemies this many tiles beyond field edge (tier 1)
+const ARK_BURST_WALL_RADIUS = 2;      // wall-destruction radius on Ark Burst (tier 3)
  
 // ════════════════════════════════════════════════════════
 // PHASE TIMINGS
@@ -373,6 +385,24 @@ const CORE_DEFS = {
     xpPerApple:   4,
     xpPerKill:    40,
     cooldownMs:   3000,
+  },
+  ark: {
+    id:    'ark',
+    label: 'Ark Core',
+    color: '#c8a0ff',
+    tiers: [
+      { name:'Ark Pulse',
+        desc:'Emit a slow field (r=3) at your head. Caught enemies move at 60% speed for 4s. 8s cooldown.' },
+      { name:'Ark Chain',
+        desc:'If any enemy is caught, the field chains to enemies within 5 tiles of its boundary.' },
+      { name:'Ark Overcharge',
+        desc:'Field radius grows to 5. Cooldown shortened to 5s.' },
+      { name:'Ark Burst',
+        desc:'Also disables enemy cores for 3s and destroys enemy walls within r=2 of your head, while keeping the full slow field.' },
+    ],
+    xpThresholds: [231, 371, 591],
+    xpPerApple:   4,
+    xpPerKill:    40,
   },
 };
  
@@ -818,6 +848,8 @@ function startGame(){
       _lengthMilestone: 0,      // for Growth Bonus: last milestone length
       _quickTurnLast: null,     // for Quick Turn: {dx,dy,time} of last direction press
       gunCDUntil: 0,
+      arkCDUntil: 0,
+      _coreSuppressedUntil: 0,
     };
   });
  
@@ -834,6 +866,7 @@ function startGame(){
     slowZones:[],
     brickWalls:[],
     bullets:[],
+    arkBurstFlashes:[],
     mode:lobbyState.mode,
     winCondition:lobbyState.winCondition,
     winLimit:lobbyState.winLimit||120,
@@ -929,6 +962,55 @@ function gunTier(p){ return coreIs(p,'gun') ? p.core.tier : -1; }
 function gunPierces(p){ return gunTier(p)>=1; }
 function gunRearShot(p){ return gunTier(p)>=2; }
 function gunCanBrick(p){ return gunTier(p)>=3; }
+
+// Ark Core helpers
+function hasArkCore(p){ return coreAtLeast(p,'ark',0); }
+function arkTier(p){ return coreIs(p,'ark') ? p.core.tier : -1; }
+
+function triggerArkPulse(p){
+  if(!hasArkCore(p)) return;
+  const now=Date.now();
+  if(now<p.arkCDUntil) return;
+  const tier=arkTier(p);
+  const radius=tier>=2 ? ARK_RADIUS_OVERCHARGE : ARK_RADIUS;
+  const cdMs  =tier>=2 ? ARK_CD_OVERCHARGE_MS  : ARK_CD_MS;
+  const hx=p.body[0].x, hy=p.body[0].y;
+
+  // Categorise enemies by Chebyshev distance from caster head
+  const inRange=[], chainTargets=[];
+  gameState.players.forEach(enemy=>{
+    if(enemy===p||!enemy.alive) return;
+    const dist=Math.max(Math.abs(enemy.body[0].x-hx),Math.abs(enemy.body[0].y-hy));
+    if(dist<=radius) inRange.push(enemy);
+    else if(tier>=1 && dist<=radius+ARK_CHAIN_TILES) chainTargets.push(enemy);
+  });
+
+  // Main slow zone centred on caster head
+  gameState.slowZones.push({x:hx,y:hy,r:radius,until:now+ARK_SLOW_MS,ownerId:p.id,color:CORE_DEFS.ark.color});
+
+  // Ark Chain (tier 1): chain to nearby-but-out-of-range enemies if at least one was caught
+  if(tier>=1 && inRange.length>0){
+    chainTargets.forEach(enemy=>{
+      gameState.slowZones.push({x:enemy.body[0].x,y:enemy.body[0].y,r:1,until:now+ARK_SLOW_MS,ownerId:p.id,color:CORE_DEFS.ark.color});
+    });
+  }
+
+  // Ark Burst (tier 3): suppress enemy cores + destroy enemy walls within burst radius
+  if(tier>=3){
+    const affected=[...inRange,...(inRange.length>0?chainTargets:[])];
+    affected.forEach(enemy=>{ enemy._coreSuppressedUntil=now+ARK_BURST_SUPPRESS_MS; });
+    gameState.brickWalls=gameState.brickWalls.filter(w=>{
+      if(w.ownerId===p.id) return true;
+      return Math.max(Math.abs(w.x-hx),Math.abs(w.y-hy))>ARK_BURST_WALL_RADIUS;
+    });
+    gameState.arkBurstFlashes.push({x:hx,y:hy,r:ARK_BURST_WALL_RADIUS,until:now+500});
+    showCarnivalToast(`${p.name}: ARK BURST${affected.length?` — ${affected.length} core(s) suppressed`:''}`,CORE_DEFS.ark.color);
+  } else {
+    const chained=(tier>=1&&inRange.length>0)?chainTargets.length:0;
+    showCarnivalToast(`${p.name}: ${chained?`ARK CHAIN (+${chained})`:'ARK PULSE'}`,CORE_DEFS.ark.color);
+  }
+  p.arkCDUntil=now+cdMs;
+}
  
 // ════════════════════════════════════════════════════════
 // GAME LOOP
@@ -1325,6 +1407,7 @@ function respawnPlayer(p){
   const rdx=Math.random()<.5?1:-1;const sz=p.rpg?p.rpg.startSz:3;
   p.body=buildSpawnBody(spot.x,spot.y,rdx,Math.max(3,sz));p.dx=rdx;p.dy=0;p.alive=true;p.ghost=true;p.growCount=0;p.inputQueue=[];p.insuranceUsed=false;
   if(p.core && coreIs(p,'phase')){ p.phaseCharges = hasDualPhase(p)?2:1; p.phaseCD=false; clearTimeout(p.phaseCDTimer); p._phaseCDEnd=0; }
+  if(p.core && coreIs(p,'ark')){ p.arkCDUntil=0; p._coreSuppressedUntil=0; }
   setTimeout(()=>{if(p)p.ghost=false;},2000);
 }
  
@@ -1375,6 +1458,16 @@ function updateHUD(){
       const gr=Math.max(0,Math.ceil((p.gunCDUntil-Date.now())/1000));
       if(gr>0) parts.push(`🔫CD ${gr}s`);
       else parts.push('🔫READY');
+    }
+    if(hasArkCore(p)){
+      const arNow=Date.now();
+      const arCd=Math.max(0,Math.ceil((p.arkCDUntil-arNow)/1000));
+      if(arCd>0) parts.push(`⚡ARK CD ${arCd}s`);
+      else parts.push('⚡ARK READY');
+    }
+    if(Date.now()<(p._coreSuppressedUntil||0)){
+      const supRem=Math.ceil((p._coreSuppressedUntil-Date.now())/1000);
+      parts.push(`⚡SUPP ${supRem}s`);
     }
     ste.textContent=parts.join(' · ');
  
@@ -1459,7 +1552,18 @@ function draw(){
   });
   // Clean expired
   gameState.slowZones=(gameState.slowZones||[]).filter(z=>z.until>now);
- 
+
+  // Ark Burst flash ring (brief expanding ring when burst fires)
+  (gameState.arkBurstFlashes||[]).filter(f=>f.until>now).forEach(f=>{
+    const t=(f.until-now)/500;
+    ctx.strokeStyle=CORE_DEFS.ark.color;ctx.lineWidth=2;ctx.globalAlpha=t*0.8;
+    ctx.strokeRect((f.x-f.r)*CELL,(f.y-f.r)*CELL,(f.r*2+1)*CELL,(f.r*2+1)*CELL);
+    ctx.globalAlpha=0.12*t;ctx.fillStyle=CORE_DEFS.ark.color;
+    ctx.fillRect((f.x-f.r)*CELL,(f.y-f.r)*CELL,(f.r*2+1)*CELL,(f.r*2+1)*CELL);
+    ctx.globalAlpha=1;
+  });
+  gameState.arkBurstFlashes=(gameState.arkBurstFlashes||[]).filter(f=>f.until>now);
+
   // Brick walls (Shedding Bricks) — solid coloured squares with glow
   (gameState.brickWalls||[]).filter(b=>b.until>now).forEach(b=>{
     const timeLeft=(b.until-now)/15000;
@@ -1567,6 +1671,8 @@ window.addEventListener('keydown',e=>{
     if(!matched) return;
     const p=gameState.players[slot];
     if(!p||!p.alive||!p.core) return;
+    // Ark Burst core suppression blocks all core activations
+    if(Date.now()<(p._coreSuppressedUntil||0)){e.preventDefault();return;}
     if(p.core.id==='phase' && hasCorePhase(p)){
       triggerPhase(p);
       e.preventDefault();
@@ -1576,6 +1682,9 @@ window.addEventListener('keydown',e=>{
       e.preventDefault();
     } else if(p.core.id==='gun'){
       triggerGunShot(p);
+      e.preventDefault();
+    } else if(p.core.id==='ark'){
+      triggerArkPulse(p);
       e.preventDefault();
     }
   });

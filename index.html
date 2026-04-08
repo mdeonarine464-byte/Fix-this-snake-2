@@ -1285,10 +1285,8 @@ function updateBullets(){
   const kept=[];
   gameState.bullets.forEach(b=>{
     b.x+=b.dx;b.y+=b.dy;
-    if(gameState.rules.wallWrap){
-      b.x=(b.x+gameState.gridW)%gameState.gridW;
-      b.y=(b.y+gameState.gridH)%gameState.gridH;
-    }else if(b.x<0||b.x>=gameState.gridW||b.y<0||b.y>=gameState.gridH){
+    // Projectiles follow legacy behavior: they never wrap with arena walls.
+    if(b.x<0||b.x>=gameState.gridW||b.y<0||b.y>=gameState.gridH){
       return;
     }
     const wallHit=gameState.brickWalls.find(w=>w.until>now&&w.ownerId!==b.ownerId&&w.x===b.x&&w.y===b.y);
@@ -1477,9 +1475,12 @@ function draw(){
  
   // Bullets (Gun Core)
   (gameState.bullets||[]).forEach(b=>{
-    ctx.fillStyle=b.brick?'#ffd700':'#8ab4ff';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=8;
-    ctx.fillRect(b.x*CELL+6,b.y*CELL+6,CELL-12,CELL-12);
-    ctx.shadowBlur=0;
+    // Legacy projectile rendering
+    ctx.fillStyle='#8ab4ff';
+    ctx.fillRect(b.x*CELL+5,b.y*CELL+5,CELL-10,CELL-10);
+    ctx.strokeStyle='#d9e8ff';
+    ctx.lineWidth=1;
+    ctx.strokeRect(b.x*CELL+5,b.y*CELL+5,CELL-10,CELL-10);
   });
 
   // Apples (S2 style: +2 offset, size-4, shadowBlur=10)

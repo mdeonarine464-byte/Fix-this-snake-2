@@ -1111,8 +1111,11 @@ function spawnSplitSummon(p){
 
 function recallHiveSummons(p){
   if(!hasHiveCore(p)||!p.splitSummons||p.splitSummons.length===0) return;
-  const bonus=Math.floor(p.splitSummons.reduce((sum,s)=>sum+s.body.length,0)/2);
-  p.growCount+=Math.max(0,bonus);
+  const hasCellDivision=splitTier(p)>=3;
+  if(!hasCellDivision){
+    const bonus=Math.floor(p.splitSummons.reduce((sum,s)=>sum+s.body.length,0)/2);
+    p.growCount+=Math.max(0,bonus);
+  }
   p.splitSummons=[];
 }
 
@@ -1125,6 +1128,7 @@ function updateSplitSummons(p){
   const sideCodes=[-1,1,-2,2,-3,3];
   (p.splitSummons||[]).forEach((s,idx)=>{
     if(!s.alive) return;
+    if(s.type==='phantom') s.len=Math.max(3,p.body.length);
     const sideCode=sideCodes[idx]||((idx%2===0?-1:1)*(Math.floor(idx/2)+1));
     const sideSign=Math.sign(sideCode)||1;
     const laneDistance=Math.abs(sideCode)*2; // one empty tile between main and side snake
@@ -1275,7 +1279,8 @@ function gameTick(now){
       gameState.apples=gameState.apples.filter(a=>{
         if(a.x!==sh.x||a.y!==sh.y) return true;
         const canTransfer = (s.type==='hive') || (s.type==='phantom' && splitTier(owner)>=3);
-        if(canTransfer) collectApple(owner,a);
+        if(!canTransfer) return true;
+        collectApple(owner,a);
         return false;
       });
     });

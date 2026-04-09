@@ -1125,10 +1125,14 @@ function updateSplitSummons(p){
   const head=p.body[0];
   p.pathHistory.unshift({x:head.x,y:head.y});
   if(p.pathHistory.length>420) p.pathHistory.length=420;
+  const sideCodes=[-1,1,-2,2,-3,3];
   (p.splitSummons||[]).forEach((s,idx)=>{
     if(!s.alive) return;
     if(s.type==='phantom') s.len=Math.max(3,p.body.length);
-    const followOffset=Math.max(1,(s.offset||6)+(idx*2));
+    const followOffset=Math.max(1,s.offset||6);
+    const sideCode=sideCodes[idx]||((idx%2===0?-1:1)*(Math.floor(idx/2)+1));
+    const sideSign=Math.sign(sideCode)||1;
+    const laneDistance=Math.abs(sideCode); // keep summons one tile apart side-to-side
     const nextBody=[];
     for(let i=0;i<s.len;i++){
       const historyIndex=followOffset+i;
@@ -1136,7 +1140,19 @@ function updateSplitSummons(p){
         p.pathHistory[historyIndex]||
         p.pathHistory[p.pathHistory.length-1]||
         head;
-      nextBody.push({x:fromHistory.x,y:fromHistory.y});
+      const prevHistory=
+        p.pathHistory[historyIndex+1]||
+        p.pathHistory[p.pathHistory.length-1]||
+        fromHistory;
+      let dirX=normalizeDelta(fromHistory.x-prevHistory.x,gameState.gridW);
+      let dirY=normalizeDelta(fromHistory.y-prevHistory.y,gameState.gridH);
+      if(Math.abs(dirX)+Math.abs(dirY)!==1){dirX=p.dx;dirY=p.dy;}
+      // Left perpendicular for sign < 0, right perpendicular for sign > 0
+      const perX=sideSign<0 ? -dirY : dirY;
+      const perY=sideSign<0 ?  dirX : -dirX;
+      const sx=(fromHistory.x + perX*laneDistance + gameState.gridW)%gameState.gridW;
+      const sy=(fromHistory.y + perY*laneDistance + gameState.gridH)%gameState.gridH;
+      nextBody.push({x:sx,y:sy});
     }
     s.body=nextBody;
   });

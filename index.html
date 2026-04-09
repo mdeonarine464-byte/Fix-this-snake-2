@@ -1092,7 +1092,7 @@ function spawnSplitSummon(p){
   const baseLen=Math.max(3,p.body.length);
   const isHive=hasHiveCore(p);
   const noCost=isHive && splitTier(p)>=3;
-  let summonLen=Math.max(3,Math.floor(baseLen/2));
+  let summonLen=isHive ? Math.max(3,Math.floor(baseLen/2)) : baseLen;
   if(isHive && !noCost){
     const removed=trimBodyKeepMin(p,summonLen);
     if(removed<3) return;
@@ -1125,6 +1125,7 @@ function updateSplitSummons(p){
   const sideCodes=[-1,1,-2,2,-3,3];
   (p.splitSummons||[]).forEach((s,idx)=>{
     if(!s.alive) return;
+    if(s.type==='phantom') s.len=p.body.length; // phantoms mirror and grow with main snake
     const sideCode=sideCodes[idx]||((idx%2===0?-1:1)*(Math.floor(idx/2)+1));
     const sideSign=Math.sign(sideCode)||1;
     const laneDistance=Math.abs(sideCode)*2; // one empty tile between main and side snake

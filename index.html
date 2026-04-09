@@ -1122,12 +1122,24 @@ function updateSplitSummons(p){
   const head=p.body[0];
   p.pathHistory.unshift({x:head.x,y:head.y});
   if(p.pathHistory.length>420) p.pathHistory.length=420;
+  const sideCodes=[-1,1,-2,2,-3,3];
   (p.splitSummons||[]).forEach((s,idx)=>{
     if(!s.alive) return;
+    const sideCode=sideCodes[idx]||((idx%2===0?-1:1)*(Math.floor(idx/2)+1));
+    const sideSign=Math.sign(sideCode)||1;
+    const laneDistance=Math.abs(sideCode)*2; // one empty tile between main and side snake
     const nextBody=[];
     for(let i=0;i<s.len;i++){
-      const sample=p.pathHistory[s.offset+i]||p.pathHistory[p.pathHistory.length-1]||head;
-      nextBody.push({x:sample.x,y:sample.y});
+      const base=p.body[Math.min(i,p.body.length-1)]||head;
+      const next=p.body[Math.min(i+1,p.body.length-1)]||base;
+      let dirX=base.x-next.x,dirY=base.y-next.y;
+      if(Math.abs(dirX)+Math.abs(dirY)!==1){dirX=p.dx;dirY=p.dy;}
+      // Left perpendicular for sign < 0, right perpendicular for sign > 0
+      const perX=sideSign<0 ? -dirY : dirY;
+      const perY=sideSign<0 ?  dirX : -dirX;
+      const sx=(base.x + perX*laneDistance + gameState.gridW)%gameState.gridW;
+      const sy=(base.y + perY*laneDistance + gameState.gridH)%gameState.gridH;
+      nextBody.push({x:sx,y:sy});
     }
     s.body=nextBody;
   });

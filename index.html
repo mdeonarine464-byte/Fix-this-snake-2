@@ -352,7 +352,7 @@ const TIME_FORGIVENESS_MAX       = 3;     // max partial forgiveness stacks
 // ════════════════════════════════════════════════════════
 // SHADOW CORE CONSTANTS
 // ════════════════════════════════════════════════════════
-const SHADOW_CD_MS          = 8000;   // cooldown starts when shadow deactivates
+const SHADOW_CD_MS          = 2500;   // cooldown starts when shadow deactivates
 const SHADOW_CLONE_SLOW_MS  = 3000;   // how long enemies are slowed on clone hit (tier 2)
 const SHADOW_CLONE_MAX_LEN  = 6;      // max body segments the clone trails
 
@@ -1264,13 +1264,15 @@ function updateShadowClones(p,dt){
     }
     clone.body.unshift(newHead);
     if(clone.body.length>SHADOW_CLONE_MAX_LEN) clone.body.pop();
-    // Shadow Ark (tier 2): slow any enemy whose head enters the clone's head cell
+    // Shadow Ark (tier 2): slow any enemy whose head touches any clone body cell
     if(shadowTier(p)>=2){
       gameState.players.forEach(enemy=>{
         if(enemy.id===p.id||!enemy.alive) return;
-        if(enemy.body[0].x===newHead.x&&enemy.body[0].y===newHead.y){
+        const eh=enemy.body[0];
+        const hit=clone.body.some(seg=>seg.x===eh.x&&seg.y===eh.y);
+        if(hit){
           gameState.slowZones.push({
-            x:newHead.x,y:newHead.y,r:1,
+            x:eh.x,y:eh.y,r:1,
             until:now+SHADOW_CLONE_SLOW_MS,
             ownerId:p.id,color:CORE_DEFS.shadow.color,shape:'square',
           });

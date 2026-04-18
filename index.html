@@ -1429,7 +1429,7 @@ function spawnShadowClone(p){
   const td=getTailDirection(p);
   // Clone starts at tail, body is reversed copy of player body (tail becomes clone head)
   const cloneBody=p.body.slice().reverse().map(s=>({x:s.x,y:s.y}));
-  p.shadowClone={body:cloneBody,dx:td.dx,dy:td.dy,alive:true};
+  p.shadowClone={body:cloneBody,dx:td.dx,dy:td.dy,alive:true,flickerUntil:0};
 }
 
 function doShadowSwap(p){
@@ -1475,6 +1475,11 @@ function triggerShadowCore(p){
 function updateShadowClone(p){
   if(!p.shadowClone||!p.shadowClone.alive) return;
   const clone=p.shadowClone;
+  const now=Date.now();
+  if(clone.flickerUntil>0){
+    if(now>=clone.flickerUntil){clone.alive=false;p.shadowClone=null;}
+    return; // frozen during flicker
+  }
   const{gridW,gridH}=gameState;
   const nx=(clone.body[0].x+clone.dx+gridW)%gridW;
   const ny=(clone.body[0].y+clone.dy+gridH)%gridH;
@@ -1627,11 +1632,14 @@ function movePlayer(p){
       if(other.body.slice(1).some(s=>s.x===head.x&&s.y===head.y)){killPlayer(p,other.id);return;}
       if((other.splitSummons||[]).some(s=>s.body&&s.body.some(seg=>seg.x===head.x&&seg.y===head.y))){killPlayer(p,other.id);return;}
     }
-    // Shadow clone: no kill, but slow at tier 2+
+    // Shadow clone: no kill; hit triggers 1.5s flicker then clone dies; tier 2+ also slows
     const now_sc=Date.now();
     for(const owner of gameState.players){
       if(owner===p||!owner.alive||!owner.shadowClone||!owner.shadowClone.alive) continue;
-      if(owner.shadowClone.body.some(seg=>seg.x===head.x&&seg.y===head.y)){
+      const clone=owner.shadowClone;
+      if(clone.flickerUntil>0) continue; // already flickering, ignore further hits
+      if(clone.body.some(seg=>seg.x===head.x&&seg.y===head.y)){
+        clone.flickerUntil=now_sc+1500;
         if(shadowTier(owner)>=2){
           gameState.slowZones.push({x:head.x,y:head.y,r:1,until:now_sc+SHADOW_CLONE_SLOW_MS,ownerId:owner.id,color:CORE_DEFS.shadow.color});
           showCarnivalToast(`${owner.name}: SHADOW ARK — ${p.name} slowed!`,CORE_DEFS.shadow.color);
@@ -2209,14 +2217,18 @@ function draw(){
     });
   });
  
-  // Shadow clones (Shadow Core) — ghostly trace, nearly invisible
+  // Shadow clones (Shadow Core) — visible head, invisible tail; flicker on hit then vanish
   players.forEach(p=>{
     if(!p.shadowClone||!p.shadowClone.alive) return;
     const clone=p.shadowClone;
-    clone.body.forEach((seg,i)=>{
-      ctx.globalAlpha=i===0?0.18:0.08;
-      drawSnakeSegment(seg,i===0,false,p.color);
-    });
+    const cloneNow=Date.now();
+    if(clone.flickerUntil>0){
+      // Flicker: toggle visibility every 120ms
+      if(Math.floor(cloneNow/120)%2===0) return;
+    }
+    // Head fully visible, tail invisible (matches parent shadow veil look)
+    ctx.globalAlpha=1;
+    drawSnakeSegment(clone.body[0],true,false,p.color);
     ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowColor='transparent';
   });
 

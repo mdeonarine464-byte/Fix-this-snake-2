@@ -1022,6 +1022,7 @@ function startGame(){
       shadowVeilActive: false,
       shadowCDUntil: 0,
       shadowSwapCDUntil: 0,
+      shadowFlickerUntil: 0,
       shadowClone: null,
     };
   });
@@ -1632,7 +1633,10 @@ function movePlayer(p){
     for(const other of gameState.players){
       if(other===p||!other.alive) continue;
       if(rules.headOn&&other.body[0].x===head.x&&other.body[0].y===head.y){killPlayer(p,other.id);killPlayer(other,p.id);return;}
-      if(other.body.slice(1).some(s=>s.x===head.x&&s.y===head.y)){killPlayer(p,other.id);return;}
+      if(other.body.slice(1).some(s=>s.x===head.x&&s.y===head.y)){
+        if(other.shadowVeilActive&&hasShadowCore(other)) other.shadowFlickerUntil=Date.now()+1500;
+        killPlayer(p,other.id);return;
+      }
       if((other.splitSummons||[]).some(s=>s.body&&s.body.some(seg=>seg.x===head.x&&seg.y===head.y))){killPlayer(p,other.id);return;}
     }
     // Shadow clone: no kill; hit triggers 1.5s flicker then clone dies; tier 2+ also slows
@@ -2247,12 +2251,21 @@ function draw(){
     if(!p.alive&&p.respawnTimer<=0&&!gameState.rules.respawn) return;
     const isPhasing=p.phaseActive;
     const isShadowVeil=p.shadowVeilActive&&hasShadowCore(p);
-    if(isShadowVeil){
-      // Head stays visible; tail is fully invisible
+    const isBodyFlicker=isShadowVeil&&p.shadowFlickerUntil>Date.now();
+    if(isShadowVeil&&!isBodyFlicker){
+      // Head stays visible; tail fully invisible
       const headAlpha=isPhasing?0.5:(!p.alive?0.15:p.ghost?0.45:1);
       ctx.globalAlpha=headAlpha;
       drawSnakeSegment(p.body[0],true,isPhasing,p.color);
       ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowColor='transparent';
+    } else if(isBodyFlicker){
+      // Full body flickers every 120ms to reveal the invisible tail
+      if(Math.floor(Date.now()/120)%2!==0){
+        const alpha=isPhasing?0.5:(!p.alive?0.15:p.ghost?0.45:1);
+        ctx.globalAlpha=alpha;
+        p.body.forEach((seg,i)=>drawSnakeSegment(seg,i===0,isPhasing,p.color));
+        ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowColor='transparent';
+      }
     } else {
       // S2 alpha: phasing=0.5, dead=0.15, ghost=0.45, alive=1.0
       const alpha=isPhasing?0.5:(!p.alive?0.15:p.ghost?0.45:1);
